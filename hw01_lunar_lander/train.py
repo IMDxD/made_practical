@@ -5,11 +5,11 @@ import numpy as np
 import torch
 from gym import make
 from torch import nn
-from torch.optim import Adam
+from torch.optim import Adam, lr_scheduler
 
 GAMMA = 0.99
 INITIAL_STEPS = 1024
-TRANSITIONS = 1_000_000
+TRANSITIONS = 2_000_000
 STEPS_PER_UPDATE = 4
 STEPS_PER_TARGET_UPDATE = STEPS_PER_UPDATE * 1000
 BATCH_SIZE = 128
@@ -19,7 +19,7 @@ DEVICE = torch.device("cuda")
 
 
 class QModel(nn.Module):
-    def __init__(self, state_dim, action_dim, fc1=256, fc2=512):
+    def __init__(self, state_dim, action_dim, fc1=512, fc2=512):
         super().__init__()
         self.fc = nn.Sequential(
             nn.Linear(state_dim, fc1),
@@ -54,10 +54,11 @@ class DQN:
         self.target_model = QModel(state_dim, action_dim).to(DEVICE)
         self.target_model.load_state_dict(self.model.state_dict())
         self.buffer = ExpirienceReplay(maxlen=BUFFER_SIZE)
-        self.optimizer = Adam(
-            self.model.parameters(), lr=LEARNING_RATE
-        )
+        self.optimizer = Adam(self.model.parameters(), lr=LEARNING_RATE)
         self.criteria = nn.MSELoss()
+        self.scheduler = lr_scheduler.StepLR(
+            self.optimizer, step_size=10000, gamma=0.8
+        )
 
     def consume_transition(self, transition):
         self.buffer.append(transition)
@@ -89,6 +90,8 @@ class DQN:
         )
         loss.backward()
         self.optimizer.step()
+        if self.steps > 1_000_000:
+            self.scheduler.step(loss)
 
     def update_target_network(self):
         self.target_model.load_state_dict(self.model.state_dict())
@@ -111,7 +114,7 @@ class DQN:
         self.steps += 1
 
     def save(self):
-        torch.save(self.model, "agent.pkl")
+        torch.save(self.model.state_dict(), "agent.pkl")
 
 
 def evaluate_policy(agent, episodes=5):
@@ -135,6 +138,8 @@ if __name__ == "__main__":
     env = make("LunarLander-v2")
     dqn = DQN(state_dim=env.observation_space.shape[0], action_dim=env.action_space.n)
     eps = 0.1
+    eps_decay = 2
+    eps_min = 0.01
 
     state = env.reset()
 
@@ -147,6 +152,9 @@ if __name__ == "__main__":
         state = next_state if not done else env.reset()
 
     for i in range(TRANSITIONS):
+
+        if i % 25_000 == 0:
+            eps = max(eps / eps_decay, eps_min)
 
         if random.random() < eps:
             action = env.action_space.sample()
