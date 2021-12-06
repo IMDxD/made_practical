@@ -259,7 +259,7 @@ def train():
         for batch in dataloader:
             agent.update(batch)
 
-    return model
+    return agent
 
 
 if __name__ == "__main__":
