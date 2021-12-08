@@ -161,18 +161,21 @@ class WorldModelEnv:
         self.c = torch.zeros(1, 256)
         self.initial_steps = np.load(__file__[:-8] + "/initial_state.npy")
         self.current_state = self.choose_state()
+        self.steps = 0
 
     def choose_state(self):
         idx = np.random.randint(self.initial_steps.shape[0])
         return torch.from_numpy(self.initial_steps[idx]).view(1, 1, -1).float()
 
     def reset(self):
+        self.steps = 0
         self.h = torch.zeros(1, 1, 256, dtype=torch.float32)
         self.c = torch.zeros(1, 1, 256, dtype=torch.float32)
         self.current_state = self.choose_state()
         return self.current_state.numpy().ravel()
 
     def step(self, action):
+        self.steps += 1
         with torch.no_grad():
             action = torch.from_numpy(action).view(1, 1, -1).float()
             x = torch.cat((self.current_state, action), dim=-1)
@@ -186,6 +189,8 @@ class WorldModelEnv:
             next_state = next_state.numpy().ravel()
             reward = reward.item()
             done = done.item() > 0.5
+            if self.steps == 1000:
+                done = True
         return next_state, reward, done, None
 
 
