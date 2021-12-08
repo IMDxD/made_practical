@@ -159,13 +159,15 @@ class WorldModelEnv:
         self.model.load_state_dict(state_dict)
         self.h = torch.zeros(1, 256)
         self.c = torch.zeros(1, 256)
-        self.initial_steps = np.load(__file__[:-8] + "/initial_state.npy")
+        initial_steps = np.load(__file__[:-8] + "/initial_state.npy")
+        self.initial_mean = initial_steps.min(0)
+        self.initial_std = initial_steps.max(0)
         self.current_state = self.choose_state()
         self.steps = 0
 
     def choose_state(self):
-        idx = np.random.randint(self.initial_steps.shape[0])
-        return torch.from_numpy(self.initial_steps[idx]).view(1, 1, -1).float()
+        init_state = np.random.uniform(self.initial_mean, self.initial_std)
+        return torch.from_numpy(init_state).view(1, 1, -1).float()
 
     def reset(self):
         self.steps = 0

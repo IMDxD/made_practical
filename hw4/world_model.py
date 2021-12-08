@@ -144,12 +144,31 @@ if __name__ == "__main__":
             next_state_pred, reward_pred, done_pred = model.forward(
                 states, actions, lengths
             )
+            states_true = []
+            states_pred = []
+            dones_true = []
+            dones_pred = []
+            rewards_true = []
+            rewards_pred = []
+            for j, l in enumerate(lengths):
+                states_true.append(next_states[j, :l, :].flatten())
+                states_pred.append(next_state_pred[j, :l, :].flatten())
+                rewards_true.append(rewards[j, :l])
+                rewards_pred.append(reward_pred[j, :l, 0])
+                dones_true.append(dones[j, :l])
+                dones_pred.append(done_pred[j, :l, 0])
+            next_states = torch.hstack(states_true)
+            next_state_pred = torch.hstack(states_pred)
+            rewards = torch.hstack(rewards_true)
+            reward_pred = torch.hstack(rewards_pred)
+            dones = torch.hstack(dones_true)
+            done_pred = torch.hstack(dones_pred)
             loss_state = F.mse_loss(
-                next_state_pred.view(-1, next_states.shape[-1]),
-                next_states.view(-1, next_states.shape[-1]),
+                next_state_pred,
+                next_states,
             )
-            loss_reward = F.mse_loss(reward_pred.squeeze(2).view(-1), rewards.view(-1))
-            loss_done = done_criteria(done_pred.squeeze(2).view(-1), dones.view(-1))
+            loss_reward = F.mse_loss(reward_pred, rewards)
+            loss_done = done_criteria(done_pred, dones)
             loss = loss_state + loss_reward + loss_done
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), GRAD_NORM)
